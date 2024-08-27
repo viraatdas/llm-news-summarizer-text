@@ -1,0 +1,4 @@
+groq
+twilio
+beautifulsoup4
+requests

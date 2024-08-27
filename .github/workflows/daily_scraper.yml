@@ -1,0 +1,25 @@
+name: Daily News Scraper
+
+on:
+  schedule:
+    - cron: '0 15 * * *'  # Runs at 11:00 AM EST (15:00 UTC)
+
+jobs:
+  run_scraper:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+    - name: Set up Python
+      uses: actions/setup-python@v2
+      with:
+        python-version: '3.x'
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+    - name: Run scraper
+      env:
+        GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+        TWILIO_ACCOUNT_SID: ${{ secrets.TWILIO_ACCOUNT_SID }}
+        TWILIO_AUTH_TOKEN: ${{ secrets.TWILIO_AUTH_TOKEN }}
+      run: python daily_scraper.py
