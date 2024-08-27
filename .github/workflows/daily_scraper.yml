@@ -2,7 +2,7 @@ name: Daily News Scraper
 
 on:
   schedule:
-    - cron: '0 15 * * *'  # Runs at 11:00 AM EST (15:00 UTC)
+    - cron: '0 15 * * *'  # Runs at 11:00 AM Eastern Time (ET) (15:00 UTC)
 
 jobs:
   run_scraper:
