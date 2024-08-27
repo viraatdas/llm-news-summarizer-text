@@ -79,23 +79,14 @@ def summarize_with_groq(title, section_text):
 
     {{
         "summary": {{
-            "title": "<name of the title>"
-            "section_text": "<brief summary of the event>",
-            "context": "<concise context for the event>"
+            "title": "{title}",
+            "section_text": "- <summary point 1>\\n- <summary point 2>\\n- <summary point 3>"
         }}
     }}
 
-    Remember the section_text should be a summary of everything provided in a concise way. 
+    Provide a very simple, concise, three-point summarization. Make it extremely concise. If there is a name, political party, or geographical region 
+    mentioned, then please briefly explain that.
 
-    In the context section, add any background information to help make the section_text make sure. That could be 
-    geographical, historical, political, or anything like that. Remember to make it concise. The context should be as controversial 
-    as possible and provide a colorful commentary on the subject.
-
-    Make the response for the section_text section and context as concise. Feel free to use semicolons and incomplete sentences 
-    to make this as concise and short and easy to digest as possible. Make sure context is adding information to section_text and not just 
-    summarizing it. 
-
-    Please make sure to return a valid JSON object in the response.
     
     This is the title: {title}
 
@@ -150,8 +141,8 @@ def format_summary_for_whatsapp(summary):
     
     formatted_message = ""
     formatted_message += f"*Headline:* {summary['summary']['title']}\n"
-    formatted_message += f"*Event:* {summary['summary']['section_text']}\n"
-    formatted_message += f"*Context:* {summary['summary']['context']}"
+    formatted_message += f"*Event:*\n {summary['summary']['section_text']}\n"
+    # formatted_message += f"*Context:* {summary['summary']['context']}"
     
     return formatted_message
 
