@@ -111,47 +111,35 @@ def scrape_wikipedia():
 
 
 def summarize_with_groq(events, today):
-    print(f"Starting summarize_with_groq function with {len(events)} events for {today}")
-    # Prepare the events data for summarization
+    logging.info(f"Starting summarize_with_groq function with {len(events)} events for {today}")
     formatted_events = []
     current_main_category = None
-    current_subcategory = None
 
     for event in events:
         if event['type'] == 'main_category':
             current_main_category = event['text']
             formatted_events.append(f"\n**{current_main_category}**")
-        elif event['type'] == 'subcategory':
-            current_subcategory = event['text']
-            formatted_events.append(f"\n*{current_subcategory}*")
-        elif event['type'] in ['event', 'nested_event']:
+        elif event['type'] in ['event', 'nested_event', 'subcategory']:
             event_text = f"- {event['text']}"
-            if event['urls']:
-                event_text += f" [Links: {', '.join(event['urls'])}]"
             formatted_events.append(event_text)
 
     events_text = "\n".join(formatted_events)
-    print(f"Formatted events text (first 500 chars): {events_text[:500]}...")
+    logging.debug(f"Formatted events text (first 500 chars): {events_text[:500]}...")
 
-    prompt_template = """Provide an extremely concise summary of the key events and their historical context from the given text. Format the summary as follows:
+    prompt_template = """Provide an extremely concise summary of the key events from the given text. Format the summary as follows:
 
-    **Daily summary {today}**
+    *Daily summary {today}*
 
-    **{first_category}**
-    <very brief high level news for this category, use bullet points>
+    *{category}*
+    • <very brief high level news for this category>
+    • <another brief point if necessary>
 
-    **Relevant context**
-    <concise relevant context like where the cities are and bite-sized information to help understand the events>
-
-    ...
-
-    - Use bullet points for individual events or facts.
+    - Use bullet points (•) for individual events or facts.
     - Keep each bullet point to one line if possible.
     - Prioritize the most important information.
-    - Use line breaks to separate different sections.
+    - Use line breaks to separate different categories.
     - Keep the language concise and unbiased.
-    - The relevant context section should have information for things that had a link
-    - Format using Twilio's lightweight markup
+    - Format using Twilio's lightweight markup (use * for bold)
 
     Here's the text to summarize:
 
@@ -159,20 +147,20 @@ def summarize_with_groq(events, today):
 
     Please provide a well-formatted, extremely concise summary following the instructions above:"""
 
-    chunks = split_message(events_text, chunk_size=4000)  # Adjust chunk_size as needed
-    print(f"Split events text into {len(chunks)} chunks")
+    chunks = split_message(events_text, chunk_size=4000)
+    logging.info(f"Split events text into {len(chunks)} chunks")
     summaries = []
 
     for i, chunk in enumerate(chunks):
-        print(f"Processing chunk {i+1}/{len(chunks)}")
+        logging.info(f"Processing chunk {i+1}/{len(chunks)}")
         prompt = prompt_template.format(
             today=today,
-            first_category=events[0]['text'] if i == 0 else "Continued",
+            category=events[0]['text'] if i == 0 else "Continued",
             chunk=chunk
         )
 
         try:
-            print(f"Sending request to Groq API for chunk {i+1}")
+            logging.info(f"Sending request to Groq API for chunk {i+1}")
             chat_completion = client.chat.completions.create(
                 messages=[
                     {
@@ -183,14 +171,14 @@ def summarize_with_groq(events, today):
                 model="llama3-8b-8192",
             )
             summary = chat_completion.choices[0].message.content
-            print(f"Received summary for chunk {i+1} (first 200 chars): {summary[:200]}...")
+            logging.info(f"Received summary for chunk {i+1} (first 200 chars): {summary[:200]}...")
             summaries.append(summary)
         except Exception as e:
-            print(f"Error in Groq API call for chunk {i+1}: {str(e)}")
+            logging.error(f"Error in Groq API call for chunk {i+1}: {str(e)}")
             summaries.append(f"Error summarizing chunk {i+1}")
 
     final_summary = "\n\n".join(summaries)
-    print(f"Final summary generated (length: {len(final_summary)} chars)")
+    logging.info(f"Final summary generated (length: {len(final_summary)} chars)")
     return final_summary
 
 def split_message(message, chunk_size=1000):
@@ -214,99 +202,110 @@ def split_message(message, chunk_size=1000):
     return chunks
 
 def main():
+    logging.info("Starting main function execution")
     try:
         # Get formatted date for Wikipedia URL
         formatted_date = get_formatted_date()
         today = datetime.strptime(formatted_date, "%Y %B %d").strftime("%Y-%m-%d")
+        logging.info(f"Processing events for date: {today}")
 
-        print(f"[DEBUG] Scraping Wikipedia for date: {formatted_date}")
+        logging.info(f"Scraping Wikipedia for date: {formatted_date}")
         events = scrape_wikipedia()
         if not events:
+            logging.error(f"No events found on Wikipedia for {formatted_date}")
             raise ValueError(f"No events found on Wikipedia for {formatted_date}")
 
-        print(f"\n[DEBUG] Found {len(events)} events. Raw event details:")
+        logging.info(f"Found {len(events)} events")
+        logging.debug("Raw event details:")
         for i, event in enumerate(events, 1):
-            print(f"Event {i}:")
-            print(f"  Type: {event['type']}")
-            print(f"  Main Category: {event.get('main_category', 'N/A')}")
-            print(f"  Subcategory: {event.get('subcategory', 'N/A')}")
-            print(f"  Text: {event['text']}")
-            print(f"  URLs: {', '.join(event.get('urls', []))}")
-            print("---")
+            logging.debug(f"Event {i}: Type: {event['type']}, "
+                          f"Main Category: {event.get('main_category', 'N/A')}, "
+                          f"Subcategory: {event.get('subcategory', 'N/A')}, "
+                          f"Text: {event['text']}, "
+                          f"URLs: {', '.join(event.get('urls', []))}")
 
-        print("\n[DEBUG] Events hierarchy:")
+        logging.debug("Events hierarchy:")
         current_main_category = None
         current_subcategory = None
         for event in events:
             if event['type'] == 'main_category':
                 current_main_category = event['text']
-                print(f"\n* {current_main_category}")
+                logging.debug(f"* {current_main_category}")
             elif event['type'] == 'subcategory':
                 current_subcategory = event['text']
-                print(f"  - {current_subcategory}")
+                logging.debug(f"  - {current_subcategory}")
             elif event['type'] in ['event', 'nested_event']:
-                print(f"    • {event['text']}")
+                logging.debug(f"    • {event['text']}")
 
-        print("\n[DEBUG] Generating summary...")
+        logging.info("Generating summary...")
         summary = summarize_with_groq(events, today)
-        print(f"[DEBUG] Summary generated: {'Yes' if summary else 'No'}")
         if not summary:
+            logging.error("Failed to generate summary")
             raise ValueError("Failed to generate summary")
+        logging.info("Summary generated successfully")
 
-        print(f"\n[DEBUG] Daily Summary for {today}:")
+        logging.info(f"Daily Summary for {today}:")
         summary_chunks = split_message(summary)
         for i, chunk in enumerate(summary_chunks, 1):
-            print(f"[DEBUG] Chunk {i}:")
-            print(chunk)
-            print("---")
+            logging.debug(f"Chunk {i}:\n{chunk}")
 
-        print("\n[DEBUG] Debug information:")
-        print(f"Total events: {len(events)}")
-        print(f"Summary length: {len(summary)} characters")
-        print(f"Number of summary chunks: {len(summary_chunks)}")
+        logging.info("Debug information:")
+        logging.info(f"Total events: {len(events)}")
+        logging.info(f"Summary length: {len(summary)} characters")
+        logging.info(f"Number of summary chunks: {len(summary_chunks)}")
 
-        print("\n[DEBUG] Raw events data (first 5 events):")
+        logging.debug("Raw events data (first 5 events):")
         import json
-        print(json.dumps(events[:5], indent=2))
+        logging.debug(json.dumps(events[:5], indent=2))
 
+        logging.info("Main function execution completed successfully")
         return summary
 
     except Exception as e:
-        error_message = f"[ERROR] Error in main function: {str(e)}"
-        logging.error(error_message)
+        error_message = f"Error in main function: {str(e)}"
+        logging.error(error_message, exc_info=True)
         return None
     finally:
-        logging.info("\n[DEBUG] Script execution completed.")
+        logging.info("Main function execution finished")
 
-def send_whatsapp_message(to_number, message):
+def send_whatsapp_message(to_number, messages):
     account_sid = os.environ['TWILIO_ACCOUNT_SID']
     auth_token = os.environ['TWILIO_AUTH_TOKEN']
     client = Client(account_sid, auth_token)
 
-    chunks = split_message(message, chunk_size=1600)
     message_sids = []
+    masked_number = f"xxx-xxx-{to_number[-4:]}"
+    logging.info(f"Attempting to send {len(messages)} messages to {masked_number}")
 
-    for i, chunk in enumerate(chunks, 1):
+    for i, message in enumerate(messages, 1):
         max_retries = 3
         retry_count = 0
         while retry_count < max_retries:
             try:
-                message = client.messages.create(
-                    from_='whatsapp:+14437752876',
-                    body=chunk,
+                logging.debug(f"Sending message {i}/{len(messages)} to {masked_number}")
+                logging.debug(f"Request payload: from_='whatsapp:+14155238886', to='whatsapp:{to_number}', body_length={len(message)}")
+                logging.debug(f"Message content: {message}")
+                sent_message = client.messages.create(
+                    from_='whatsapp:+14155238886',
+                    body=message,
                     to=f"whatsapp:{to_number}"
                 )
-                message_sids.append(message.sid)
-                logging.info(f"Chunk {i}/{len(chunks)} sent successfully to {to_number}. SID: {message.sid}")
+                message_sids.append(sent_message.sid)
+                logging.info(f"Message {i}/{len(messages)} sent successfully to {masked_number}. SID: {sent_message.sid}")
+                logging.debug(f"Full Twilio API response: {sent_message.__dict__}")
                 break
             except TwilioRestException as e:
                 retry_count += 1
-                logging.warning(f"Attempt {retry_count} failed to send chunk {i}/{len(chunks)} to {to_number}. Error: {str(e)}")
+                logging.warning(f"Attempt {retry_count} failed to send message {i}/{len(messages)} to {masked_number}. Error: {str(e)}")
+                logging.error(f"Twilio error code: {e.code}")
+                logging.error(f"Twilio error message: {e.msg}")
+                logging.error(f"Twilio error details: {e.details}")
                 if retry_count == max_retries:
-                    logging.error(f"Failed to send chunk {i}/{len(chunks)} to {to_number} after {max_retries} attempts.")
+                    logging.error(f"Failed to send message {i}/{len(messages)} to {masked_number} after {max_retries} attempts.")
                     return False, message_sids
                 time.sleep(5)  # Wait for 5 seconds before retrying
 
+    logging.info(f"Successfully sent {len(message_sids)}/{len(messages)} messages to {masked_number}")
     return True, message_sids
 
 def check_message_status(message_sid):
@@ -317,38 +316,57 @@ def check_message_status(message_sid):
     try:
         message = client.messages(message_sid).fetch()
         logging.info(f"Message {message_sid} status: {message.status}")
+        logging.debug(f"Full message details: {message.__dict__}")
+        if message.error_code:
+            logging.warning(f"Message {message_sid} has error code: {message.error_code}")
+            logging.warning(f"Error message: {message.error_message}")
         return message.status
     except TwilioRestException as e:
         logging.error(f"Error checking message status for SID {message_sid}: {str(e)}")
+        logging.error(f"Error code: {e.code}")
+        logging.error(f"Error details: {e.details}")
         return None
 
 if __name__ == "__main__":
+    logging.info("Starting the main script execution")
     try:
+        logging.info("Calling main() function to generate summary")
         summary = main()
         if summary:
+            logging.info("Summary generated successfully. Preparing to send WhatsApp messages")
             phone_numbers = ['+13042164370', '+17655862276', '+19259807244']
-            message_chunks = split_message(summary, chunk_size=1600)
+
+            # Split the summary into separate messages for each category
+            messages = summary.split('\n\n')
+
             for number in phone_numbers:
+                logging.info(f"Sending messages to {number}")
                 delivery_status = []
-                for chunk in message_chunks:
-                    success, message_sids = send_whatsapp_message(number, chunk)
+
+                for i, message in enumerate(messages, 1):
+                    logging.info(f"Sending message {i}/{len(messages)} to {number}")
+                    success, message_sids = send_whatsapp_message(number, message)
+
                     if success:
                         for sid in message_sids:
                             status = check_message_status(sid)
                             delivery_status.append(status)
+                            logging.info(f"Message {sid} to {number} status: {status}")
                             if status != 'delivered':
                                 logging.warning(f"Message {sid} to {number} status: {status}")
                     else:
                         delivery_status.extend([False] * len(message_sids))
-                        logging.error(f"Failed to send message chunk to {number}")
+                        logging.error(f"Failed to send message {i} to {number}")
 
                 successful_deliveries = sum(1 for status in delivery_status if status == 'delivered')
-                logging.info(f"Sent {successful_deliveries}/{len(message_chunks)} message chunks to {number}")
+                logging.info(f"Sent {successful_deliveries}/{len(messages)} messages to {number}")
 
-                if successful_deliveries < len(message_chunks):
-                    failed_deliveries = len(message_chunks) - successful_deliveries
-                    logging.error(f"Failed to deliver {failed_deliveries} chunks to {number}")
+                if successful_deliveries < len(messages):
+                    failed_deliveries = len(messages) - successful_deliveries
+                    logging.error(f"Failed to deliver {failed_deliveries} messages to {number}")
         else:
             logging.warning("No summary generated. Unable to send WhatsApp messages.")
     except Exception as e:
-        logging.error(f"An error occurred: {str(e)}")
+        logging.error(f"An error occurred in the main execution: {str(e)}")
+    finally:
+        logging.info("Main script execution completed")
