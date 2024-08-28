@@ -20,7 +20,7 @@ client = Groq(api_key=os.environ.get("GROQ_API_KEY"))
 # Set up Twilio client
 twilio_client = Client(os.environ.get("TWILIO_ACCOUNT_SID"), os.environ.get("TWILIO_AUTH_TOKEN"))
 
-phone_numbers = ['+13042164370', '+17655862276', '+19259807244']
+phone_numbers = ['+13042164370', '+17655862276', '+19259807244', '+13049063820']
 
 def get_formatted_date():
     # Return the current date formatted for Wikipedia URL
