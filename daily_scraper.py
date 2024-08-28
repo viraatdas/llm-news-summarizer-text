@@ -1,4 +1,5 @@
 import os
+import random
 import requests
 from bs4 import BeautifulSoup
 from groq import Groq
@@ -24,6 +25,52 @@ phone_numbers = ['+13042164370', '+17655862276', '+19259807244']
 def get_formatted_date():
     # Return the current date formatted for Wikipedia URL
     return datetime.now().strftime("%Y %B %d")
+
+def interesting_info():
+    # Generate interesting information using the LLM API
+    prompt_template = """
+    Tell me a random obscure, interesting, and enriching information. This can't be about jellyfishes. 
+    These can be anything random from physics, biology, animals, plants, computer science, maths, psychology, economics, 
+    history, politcal science, to pretty much anything.
+    
+    Return the output in a JSON format.
+    
+    This is the output:
+    {{
+        "fact": "<interesting info>"
+    }}
+
+    """
+
+    prompt = prompt_template.format()
+    
+    try:
+        logging.info(f"Sending request to Groq API for interesting info")
+        chat_completion = client.chat.completions.create(
+            messages=[
+                {
+                    "role": "user",
+                    "content": prompt,
+                }
+            ],
+            model="llama3-8b-8192",
+            temperature=1.5,
+        )
+        # Parse the returned message content
+        response_content = chat_completion.choices[0].message.content
+
+        # Extract JSON object
+        json_str = re.search(r'{.*}', response_content, re.DOTALL)
+        if json_str:
+            interesting_fact = json.loads(json_str.group())
+        else:
+            raise ValueError("No valid JSON object found in the LLM response.")
+        
+        return interesting_fact
+
+    except Exception as e:
+        logging.error(f"Error in Groq API call for interesting info: {str(e)}")
+        return {"error": f"Failed to retrieve interesting info : {str(e)}"}
 
 def scrape_wikipedia():
     date = get_formatted_date()
@@ -134,7 +181,7 @@ def summarize_with_groq(title, section_text):
 
 def format_summary_for_whatsapp(summary):
     """
-    Formats the JSON summary into a string suitable for WhatsApp.
+    Formats the JSON summary and interesting info into a string suitable for WhatsApp.
     """
     if "error" in summary:
         return f"Error: {summary['error']}"
@@ -142,8 +189,7 @@ def format_summary_for_whatsapp(summary):
     formatted_message = ""
     formatted_message += f"*Headline:* {summary['summary']['title']}\n"
     formatted_message += f"*Event:*\n {summary['summary']['section_text']}\n"
-    # formatted_message += f"*Context:* {summary['summary']['context']}"
-    
+
     return formatted_message
 
 def send_whatsapp_message(to_number, message):
@@ -206,6 +252,10 @@ def main():
             else:
                 logging.error(f"Failed to send daily summary to {number}")
 
+        # Get interesting fact from the LLM
+        interesting_fact = interesting_info()
+        interesting_fact = f"*Interesting Fact:* {interesting_fact.get("fact")}"
+
         # Process each event one at a time and send summary
         for event in events:
             summary = summarize_with_groq(event, events[event])
@@ -225,6 +275,14 @@ def main():
                     logging.info(f"Message {message_sid} to {number} status: {status}")
                 else:
                     logging.error(f"Failed to send summary to {number}")
+
+        for number in phone_numbers:
+            success, message_sid = send_whatsapp_message(number, interesting_fact)
+            if success:
+                status = check_message_status(message_sid)
+                logging.info(f"Message {message_sid} to {number} status: {status}")
+            else:
+                logging.error(f"Failed to send daily summary to {number}")
 
         logging.info("Main function execution completed successfully")
         return events
