@@ -1,5 +1,5 @@
 import os
-import random
+import time
 import requests
 from bs4 import BeautifulSoup
 from groq import Groq
@@ -21,6 +21,7 @@ client = Groq(api_key=os.environ.get("GROQ_API_KEY"))
 twilio_client = Client(os.environ.get("TWILIO_ACCOUNT_SID"), os.environ.get("TWILIO_AUTH_TOKEN"))
 
 phone_numbers = ['+13042164370', '+17655862276', '+19259807244', '+13049063820']
+sleep_duration = 1
 
 def get_formatted_date():
     # Return the current date formatted for Wikipedia URL
@@ -189,8 +190,13 @@ def format_summary_for_whatsapp(summary):
     formatted_message = ""
     formatted_message += f"*Headline:* {summary['summary']['title']}\n"
     formatted_message += f"*Event:*\n {summary['summary']['section_text']}\n"
+    
+    # Check if 'context' key exists before adding it to the message
+    if 'context' in summary['summary']:
+        formatted_message += f"*Context:* {summary['summary']['context']}\n"
 
     return formatted_message
+
 
 def send_whatsapp_message(to_number, message):
     account_sid = os.environ['TWILIO_ACCOUNT_SID']
@@ -233,7 +239,8 @@ def main():
     try:
         # Get formatted date for Wikipedia URL
         formatted_date = get_formatted_date()
-        today = datetime.strptime(formatted_date, "%Y %B %d").strftime("%Y-%m-%d")
+        today = datetime.strptime(formatted_date, "%Y_%B_%d").strftime("%Y-%m-%d")
+
         logging.info(f"Processing events for date: {today}")
 
         logging.info(f"Scraping Wikipedia for date: {formatted_date}")
@@ -251,6 +258,9 @@ def main():
                 logging.info(f"Message {message_sid} to {number} status: {status}")
             else:
                 logging.error(f"Failed to send daily summary to {number}")
+
+            print(f"Sleep for {sleep_duration} seconds | number: {number}")
+            time.sleep(sleep_duration)
 
         # Get interesting fact from the LLM
         interesting_fact = interesting_info()
