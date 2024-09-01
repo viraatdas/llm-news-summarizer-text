@@ -24,7 +24,7 @@ phone_numbers = ['+13042164370', '+17655862276', '+19259807244', '+13049063820']
 
 def get_formatted_date():
     # Return the current date formatted for Wikipedia URL
-    return datetime.now().strftime("%Y %B %d")
+    return datetime.now().strftime("%Y_%B_%-d")
 
 def interesting_info():
     # Generate interesting information using the LLM API
